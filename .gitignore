@@ -1,0 +1,29 @@
+# Ambientes Virtuais e Cache do Python
+.venv/
+__pycache__/
+*.pyc
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Arquivos de Dados (Muito importante não subir para o GitLab!)
+data/
+*.csv
+*.tsv
+*.xlsx
+*.parquet
+
+# Pesos de Modelos de IA
+*.pkl
+*.h5
+*.pt
+*.pth
+
+# Configurações de IDE e Sistema
+.vscode/
+.idea/
+.DS_Store
+.spyproject/
+
+#  Arquivos de Senhas e Variáveis de Ambiente
+.env
