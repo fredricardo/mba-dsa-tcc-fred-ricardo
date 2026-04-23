@@ -1,93 +1,76 @@
-# tcc-fred-ricardo
+# Comparativo da Análise de Cluster no Agrupamento Geográfico da Epidemia de Dengue no Estado de São Paulo
 
+**Autor:** Fred Ricardo de Souza Costa  
+**Curso:** MBA em Data Science e Analytics – USP/Esalq (2026)
 
+## Objetivo da Pesquisa
+Esta pesquisa tem o objetivo de analisar os agrupamentos da incidência dos casos notificados de dengue no estado de São Paulo no ano de 2025. 
+O estudo proporciona uma visão comparativa entre os algoritmos de clusterização não supervisionados não hierárquicos: **K-means** e **Dynamic Time Warping (DTW)**. 
+O trabalho visa contornar a rigidez temporal imposta pela métrica de distância euclidiana do K-Means, utilizando o DTW para agrupar as séries temporais pela **morfologia das curvas de contágio**. Com isso, busca-se entender o comportamentoda dinâmica da epidemia de forma regionalizada (pelos Grupos de Vigilância Epidemiológica - GVE), 
+fornecendo subsídios mais precisos para a formulação de políticas públicas de controle e prevenção.
 
-## Getting started
+# Comparativo da Análise de Cluster na Epidemia de Dengue (SP - 2025)
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Este projeto realiza uma análise comparativa dos algoritmos de clusterização 
+não supervisionados K-Means e Dynamic Time Warping (DTW) para entender o 
+agrupamento geográfico das notificações de dengue no estado de São Paulo [1, 2].
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Pré-requisitos
 
-## Add your files
+Para executar o código, você precisará do Python instalado e das seguintes bibliotecas [3]:
+*   `pandas`, `numpy`, `scipy`
+*   `matplotlib`, `seaborn`, `plotly`
+*   `geopandas`
+*   `scikit-learn` (sklearn)
+*   `tslearn`
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+Você pode instalá-las via pip:
+`pip install pandas numpy scipy matplotlib seaborn plotly geopandas scikit-learn tslearn`
 
-```
-cd existing_repo
-git remote add origin https://gitlab.com/mba-data-science/tcc-fred-ricardo.git
-git branch -M main
-git push -uf origin main
-```
+## 📂 Estrutura de Diretórios e Bases de Dados
 
-## Integrate with your tools
+Para que o código funcione corretamente, você deve organizar o repositório local com a seguinte estrutura de pastas relativas (o script busca os dados na pasta `../data/raw/`):
 
-* [Set up project integrations](https://gitlab.com/mba-data-science/tcc-fred-ricardo/-/settings/integrations)
+```text
+├── data/
+│   └── raw/
+│       ├── DENGBR25.csv
+│       ├── dengue25_se_vigilancia.csv
+│       ├── pop_munic_ibge.csv
+│       ├── municipio_tse_ibge.csv
+│       ├── calendario_epidemiologico_2025.csv
+│       └── SP_Municipios_2025.zip
+├── src/
+│   └── data_tcc_mba_dsa.py   # Código principal
+└── README.md
+````
+O script espera que os dados estejam em uma pasta específica chamada `../data/raw/` em relação ao local de execução [4]. 
 
-## Collaborate with your team
+Faça o download das bases públicas abaixo e salve-as com os nomes indicados na pasta `data/raw/`:
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+1. **Base SINAN - Agravos de Notificação (Dengue)**
+   *   **Onde obter:** Portal de Dados Abertos do Governo Federal ([Acessar link](https://dados.gov.br/dados/conjuntos-dados/arboviroses-dengue)) [5].
+   *   **Nome do arquivo:** `DENGBR25.csv` [4].
+2. **Dados Estatísticos CVE**
+   *   **Onde obter:** Portal do Centro de Vigilância Epidemiológica ([Acessar link](https://www.saude.sp.gov.br/cve-centro-de-vigilancia-epidemiologica-prof.-alexandre-vranjac/areas-de-vigilancia/doencas-de-transmissao-por-vetores-e-zoonoses/arboviroses-urbanas/dengue-dados-estatisticos)) [6].
+   *   **Nome do arquivo:** `dengue25_se_vigilancia.csv` [7].
+3. **Códigos oficiais de UF e Municípios**
+   *   **Onde obter:** Portal de Dados Abertos do TSE/IBGE ([Acessar link](https://dadosabertos.tse.jus.br/dataset/codigos-oficiais-de-uf-e-municipios-segundo-o-tse-e-o-ibge)) [8].
+   *   **Nome do arquivo:** `municipio_tse_ibge.csv` [9].
+4. **População Estimada (IBGE)**
+   *   **Onde obter:** Portal do IBGE (Necessário baixar e tratar no formato CSV) [7].
+   *   **Nome do arquivo:** `pop_munic_ibge.csv` [7].
+5. **Calendário Epidemiológico 2025**
+   *   **Onde obter:** Portal SINAN Ministério da Saúde ([Acessar link](https://portalsinan.saude.gov.br/calendario-epidemiologico/43-institucional/175-calendario-epidemiologico-2025)) [10].
+   *   **Nome do arquivo:** `calendario_epidemiologico_2025.csv` [9].
+6. **Malha Municipal de São Paulo**
+   *   **Onde obter:** Portal de Geociências do IBGE ([Acessar link](https://www.ibge.gov.br/geociencias/organizacao-do-territorio/malhas-territoriais/15774-malhas.html)) [11].
+   *   **Nome do arquivo:** `SP_Municipios_2025.zip` [9].
 
-## Test and Deploy
+## Como Executar
 
-Use the built-in continuous integration in GitLab.
+Com as bibliotecas instaladas e as bases de dados posicionadas corretamente na pasta `../data/raw/`, basta executar o script principal:
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+```bash
 
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+python data_tcc_mba_dsa.py
