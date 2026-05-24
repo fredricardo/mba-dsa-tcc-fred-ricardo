@@ -27,6 +27,10 @@ Para executar o código, você precisará do Python instalado e das seguintes bi
 Você pode instalá-las via pip:
 `pip install pandas numpy scipy matplotlib seaborn plotly geopandas scikit-learn tslearn`
 
+Ou exectuar o seguinte comando: 
+
+`%pip install -r requirements.txt`
+
 ## 📂 Estrutura de Diretórios e Bases de Dados
 
 Para que o código funcione corretamente, você deve organizar o repositório local com a seguinte estrutura de pastas relativas (o script busca os dados na pasta `../data/raw/`):
