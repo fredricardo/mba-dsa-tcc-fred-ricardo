@@ -83,6 +83,7 @@ data/processed/*.parquet
 data/processed/*.feather
 data/processed/*.pickle
 data/processed/*.pkl
+data/
 
 # Arquivos compactados
 *.zip
