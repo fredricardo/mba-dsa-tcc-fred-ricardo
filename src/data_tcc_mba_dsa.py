@@ -18,10 +18,12 @@ from matplotlib.colors import ListedColormap
 import matplotlib.patches as mpatches
 from tslearn.clustering import TimeSeriesKMeans
 from tslearn.preprocessing import TimeSeriesScalerMeanVariance
+from tslearn.metrics import dtw
+from tslearn.metrics import cdist_dtw
 from scipy.stats import zscore
 from sklearn.cluster import KMeans
-import plotly.io as pio
-pio.renderers.default='browser'
+from sklearn.metrics import silhouette_score
+from sklearn.metrics import adjusted_rand_score
 
 # %% Ingestao a base de dados
 # Base SINAN - Agravos de Notificação
@@ -498,9 +500,6 @@ scaler = TimeSeriesScalerMeanVariance()
 # transforma os dados brutos (0 a milhares) em desvios padrão (ex: -1.5 a +3.0)
 matriz_gve_pad = scaler.fit_transform(matriz_gve.values)
 
-print("Dados padronizados! Treinando o modelo DTW...")
-
-
 # %% Testando a quantidade de cluster utilizando Elbow Method DTW
 
 print("Iniciando o Elbow Method com DTW")
@@ -510,17 +509,13 @@ inercia_dtw = []
 
 # Teste divisão do Estado de São Paulo entre 2 e 8 perfis epidemiológicos
 K_range = range(2, 9) 
-
 for k in K_range:
     # O n_jobs=-1 é paralelizar o processamento
-    modelo = TimeSeriesKMeans(n_clusters=k, metric="dtw", random_state=42, n_jobs=-1)
-
-    modelo.fit(matriz_gve.values)
-    
+    modelo_dtw_elbow = TimeSeriesKMeans(n_clusters=k, metric="dtw", random_state=42, n_jobs=-1).fit(matriz_gve_pad)
     # Extrai o custo total de alinhamento (Inércia) e guarda na lista
-    inercia_dtw.append(modelo.inertia_)
-    
-    print(f"Teste com {k} Clusters concluído. Custo DTW: {modelo.inertia_:.0f}")
+    inercia_dtw.append(modelo_dtw_elbow.inertia_)
+
+    print(f"Teste com {k} Clusters concluído. Custo DTW: {modelo_dtw_elbow.inertia_:.0f}")
 
 print("Testes finalizados! Desenhando o gráfico...")
 
@@ -556,6 +551,61 @@ ax.spines['left'].set_color('black')
 plt.tight_layout()
 plt.show()
 
+# %% Método da silhueta para identificação do nº de clusters DTW
+print("Método da silhueta para identificação do nº de clusters DTW")
+
+# 1. Calcula a distância DTW de todos contra todos. 
+# # Importante fazer esse calculo pois o algoritimo por padrão usa a distância euclidiana já para o DTW é diferente
+matriz_distancias_dtw = cdist_dtw(matriz_gve_pad)
+
+silhueta_dtw = []
+K_range = range(2, 9) # ponto de parada entre 2 e 8 exigido pela banca
+
+print("Testando valores de K para o DTW...")
+for k in K_range: 
+    # 2. Treina o modelo DTW
+    modelo_dtw_sil = TimeSeriesKMeans(n_clusters=k, metric="dtw", random_state=42, n_jobs=-1)
+    labels_dtw = modelo_dtw_sil.fit_predict(matriz_gve_pad)
+    
+    # 3.Calcula a Silhueta avisando que a matriz já é DTW (precomputed)
+    score_dtw = silhouette_score(matriz_distancias_dtw, labels_dtw, metric="precomputed")
+    silhueta_dtw.append(score_dtw)
+    
+    print(f"K={k} | Silhueta DTW: {score_dtw:.4f}")
+
+# ===== Formato TCC
+fig, ax = plt.subplots(figsize=(16, 8))
+
+# Remoção de preenchimento (Fundo totalmente branco)
+fig.patch.set_facecolor('white')
+ax.set_facecolor('white')
+
+# Plotagem da linha (DTW) - usando um verde escuro para diferenciar do K-Means
+ax.plot(K_range, silhueta_dtw, marker='o', color='darkgreen', linewidth=2, markersize=9)
+
+# Linha vertical marcando o melhor K para o DTW
+melhor_k_dtw = silhueta_dtw.index(max(silhueta_dtw)) + 2
+plt.axvline(x=melhor_k_dtw, linestyle='dotted', color='red') 
+
+# Formatação dos Títulos dos Eixos (Sem título do gráfico, Arial 11, Preta)
+ax.set_xlabel('Nº Clusters', fontsize=11, color='black', fontfamily='Arial', labelpad=10)
+ax.set_ylabel('Silhueta Média (DTW)', fontsize=11, color='black', fontfamily='Arial', labelpad=10)
+
+# Formatação dos Ticks (Valores dos eixos) em Arial
+plt.xticks(ticks=range(1, 11), fontfamily='Arial', fontsize=10)
+plt.yticks(fontfamily='Arial', fontsize=10)
+
+# Regras rigorosas da Tabela 8 (Grades, Bordas e Eixos 1.5pt)
+ax.grid(False) # Não deve conter linhas de grade
+ax.spines['top'].set_visible(False)    # Remove borda superior
+ax.spines['right'].set_visible(False)  # Remove borda direita
+ax.spines['bottom'].set_linewidth(1.5) # Eixo principal horizontal
+ax.spines['bottom'].set_color('black')
+ax.spines['left'].set_linewidth(1.5)   # Eixo principal vertical
+ax.spines['left'].set_color('black')
+
+plt.tight_layout()
+plt.show()
 # %% Aplicando o modelo DTW 
 
 n_k = 4
@@ -783,7 +833,7 @@ plt.tight_layout()
 plt.show()
 
 
-#%% ====== K-means 
+# %% ====== K-means 
 
 matriz_gve_km = matriz_gve.copy()
 # Padronização das variáveis cluster K-Means
@@ -792,13 +842,13 @@ matriz_gve_km = matriz_gve.copy()
 # As variáveis passam a ter média = 0 e desvio padrão = 1
 matriz_gve_pad = matriz_gve_km.apply(zscore, ddof=1)
 
-#%% Identificação da quantidade de clusters (Método Elbow) KMeans
+# %% Identificação da quantidade de clusters (Método Elbow) KMeans
 
-elbow = []
-K = range(1,11) # ponto de parada pode ser parametrizado manualmente
-for k in K:
-    kmeanElbow = KMeans(n_clusters=k, init='random', random_state=100).fit(matriz_gve)
-    elbow.append(kmeanElbow.inertia_)
+Elbow = []
+K_range = range(2,9) # ponto de parada pode ser parametrizado manualmente
+for k in K_range:
+    kmeanElbow = KMeans(n_clusters=k, init='random', random_state=100).fit(matriz_gve_pad)
+    Elbow.append(kmeanElbow.inertia_)
     
 # ===== Formato TCC
 fig, ax = plt.subplots(figsize=(16, 8))
@@ -808,7 +858,7 @@ fig.patch.set_facecolor('white')
 ax.set_facecolor('white')
 
 # Plotagem da linha (mantendo as variáveis K e elbow originais)
-ax.plot(K, elbow, marker='o', color='darkblue', linewidth=2, markersize=8)
+ax.plot(K_range,Elbow, marker='o', color='darkblue', linewidth=2, markersize=8)
 
 # Formatação dos Títulos dos Eixos (Sem título do gráfico, Arial 11, Preta)
 ax.set_xlabel('Nº Clusters', fontsize=11, color='black', fontfamily='Arial', labelpad=10)
@@ -830,17 +880,53 @@ ax.spines['left'].set_color('black')
 plt.tight_layout()
 plt.show()
 
-#%% Execucao Cluster K-means
+# %% Método da silhueta para identificação do nº de clusters K-Means
+
+silhueta_km = []
+K_range = range(2,9) # ponto de parada pode ser parametrizado manualmente
+for k in K_range: 
+    kmeansSil = KMeans(n_clusters=k, init='random', random_state=100).fit(matriz_gve_pad)
+    silhueta_km.append(silhouette_score(matriz_gve_pad, kmeansSil.labels_))
+
+# ===== Formato TCC
+fig, ax = plt.subplots(figsize=(16, 8))
+
+# Remoção de preenchimento (Fundo totalmente branco)
+fig.patch.set_facecolor('white')
+ax.set_facecolor('white')
+
+# Plotagem da linha (mantendo as variáveis K e elbow originais)
+ax.plot(K_range, silhueta_km, marker='o', color='darkgreen', linewidth=2, markersize=9)
+#plt.plot(range(2, 9), silhueta, color = 'purple', marker='o') # Ajustar range
+plt.axvline(x = silhueta_km.index(max(silhueta_km))+2, linestyle = 'dotted', color = 'red') 
+
+# Formatação dos Títulos dos Eixos (Sem título do gráfico, Arial 11, Preta)
+ax.set_xlabel('Nº Clusters', fontsize=11, color='black', fontfamily='Arial', labelpad=10)
+ax.set_ylabel('Silhueta Média (K-Means)', fontsize=11, color='black', fontfamily='Arial', labelpad=10)
+
+# Formatação dos Ticks (Valores dos eixos) em Arial
+plt.xticks(ticks=range(1, 11), fontfamily='Arial', fontsize=10)
+plt.yticks(fontfamily='Arial', fontsize=10)
+
+# Regras rigorosas da Tabela 8 (Grades, Bordas e Eixos 1.5pt)
+ax.grid(False) # Não deve conter linhas de grade
+ax.spines['top'].set_visible(False)    # Remove borda superior
+ax.spines['right'].set_visible(False)  # Remove borda direita
+ax.spines['bottom'].set_linewidth(1.5) # Eixo principal horizontal
+ax.spines['bottom'].set_color('black')
+ax.spines['left'].set_linewidth(1.5)   # Eixo principal vertical
+ax.spines['left'].set_color('black')
+
+plt.tight_layout()
+plt.show()
+
+# %% Execucao Cluster K-means
 
 kmeans_final = KMeans(n_clusters = 4, init = 'random', random_state=100).fit(matriz_gve_pad)
 
 # Gerando a variável para identificarmos os clusters gerados
-kmeans_clusters = kmeans_final.labels_
-matriz_gve_km['CLUSTER_EPIDEMICO_KM'] = kmeans_clusters
-matriz_gve_cluster['CLUSTER_EPIDEMICO_KM'] = kmeans_clusters
+matriz_gve_cluster['CLUSTER_EPIDEMICO_KM'] = kmeans_final.labels_
 matriz_gve_cluster['CLUSTER_EPIDEMICO_KM'] = matriz_gve_cluster['CLUSTER_EPIDEMICO_KM'].astype('category')
-matriz_gve_km['CLUSTER_EPIDEMICO_KM'] = matriz_gve_km['CLUSTER_EPIDEMICO_KM'].astype('category')
-
 
 # %% Validacao do KMEANS
 # Obtendo os centróides matemáticos (curvas médias) do modelo KMeans
@@ -904,12 +990,6 @@ for i in range(4):
 # Ajuste final de layout (Removido plt.suptitle para cumprir a Norma de "Não conter título")
 plt.tight_layout()
 plt.show()
-#%% Identificação das características dos clusters
-# Agrupando o banco de dados
-analise_gve_km = matriz_gve_km.groupby(by=['CLUSTER_EPIDEMICO_KM'])
-# Estatísticas descritivas por grupo
-tab_medias_grupo = analise_gve_km.mean().T
-tab_desc_grupo = analise_gve_km.describe().T
 
 # %% Mapa de Clusters Kmeans por GVE
 # Dissolve os municípios para criar os polígonos dos GVEs
@@ -1051,3 +1131,16 @@ for i in range(4):
 # Ajuste final de layout (Removido plt.suptitle para cumprir a Norma de "Não conter título principal")
 plt.tight_layout()
 plt.show()
+
+# %% Identificação das características dos clusters
+
+# Extrai os rótulos gerados pelos dois modelos para k=4
+labels_kmeans = matriz_gve_cluster['CLUSTER_EPIDEMICO_KM']
+labels_dtw = matriz_gve_cluster['CLUSTER_EPIDEMICO_DTW']
+
+# Calcula o Adjusted Rand Index
+ari_score = adjusted_rand_score(labels_kmeans, labels_dtw)
+
+print("=== MÉTRICA DE CONCORDÂNCIA ===")
+print(f"Adjusted Rand Index (ARI) para k=4: {ari_score:.4f}")
+print("-" * 30)
