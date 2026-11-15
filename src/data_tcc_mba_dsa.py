@@ -137,7 +137,8 @@ df_tse_ibge_sp.info()
 df_unidade_org_saude = pd.merge(
     ds_dengue25_se_vigilancia [['DRS','NOME_DRS','GVE','NOME_GVE',
                                'REGIAO_SAUDE','NOME_REIGIAO_SAUDE','CD_MUNICIPIO_SINAN']],
-    df_tse_ibge_sp[['CD_MUNICIPIO_SINAN','CD_MUNICIPIO_IBGE']],
+    df_tse_ibge_sp[['CD_MUNICIPIO_SINAN','CD_MUNICIPIO_IBGE',
+                               'POP_ESTIMADA']],
     left_on='CD_MUNICIPIO_SINAN',
     right_on='CD_MUNICIPIO_SINAN',
     how='left'
@@ -198,7 +199,8 @@ df_dengue25_sp = pd.merge(
                           'CD_MUNICIPIO_IBGE',
                           'DRS', 
                           'GVE', 
-                          'REGIAO_SAUDE']],
+                          'REGIAO_SAUDE',
+                          'POP_ESTIMADA']],
     left_on='CD_MUNICIPIO_INFEC',
     right_on='CD_MUNICIPIO_SINAN',
     how='left'
@@ -253,7 +255,8 @@ df_notif_SE = df_dengue25_sp[['DT_NOTIFIC',
                               'GVE',
                               'ID_REGIONA', 
                               'DT_SIN_PRI', 
-                              'SEM_PRI']]
+                              'SEM_PRI',
+                              'POP_ESTIMADA']]
 df_notif_SE.info()
 df_notif_SE['SEM_NOT'] = df_notif_SE['SEM_NOT'].astype(str).str[4:].astype(int)
 df_notif_SE.sort_values(by='SEM_NOT', inplace = True, ascending=True)
@@ -480,6 +483,27 @@ ax.spines['left'].set_color('black')
 plt.tight_layout()
 plt.show()
 
+# %% Calculo da Taxa de incidencia por Municipio
+# Baixa incidência: Até 100 casos por 100 mil habitantes.
+# Média incidência: 101 a 299 casos por 100 mil habitantes.
+# Alta incidência/Epidemia: 300 ou mais casos por 100 mil habitantes
+
+# Isolar a população única por município e somar para obter a população total do GVE
+df_pop_municipios = df_notif_SE[['GVE', 'CD_MUNICIPIO_IBGE', 'POP_ESTIMADA']].drop_duplicates()
+df_pop_gve = df_pop_municipios.groupby('GVE')['POP_ESTIMADA'].sum().reset_index(name='POP_TOTAL_GVE')
+
+# Cruzar os casos semanais com a população agregada correta do GVE
+df_notif_SE_gve = pd.merge(
+    df_notif_SE_gve, 
+    df_pop_gve, 
+    on='GVE', 
+    how='left')
+
+# Calcular a Taxa de Incidência (Casos por 100 mil habitantes)
+df_notif_SE_gve['TAXA_INCIDENCIA'] = (df_notif_SE_gve['TOTAL_NOTIFIC'] / df_notif_SE_gve['POP_TOTAL_GVE']) * 100000
+df_notif_SE_gve['TAXA_INCIDENCIA'] = df_notif_SE_gve['TAXA_INCIDENCIA'].round(2)
+df_notif_SE_gve = df_notif_SE_gve.sort_values(by='TAXA_INCIDENCIA', ascending=False)
+
 # %% Analise de agrupamento com Clustering Dynamic Time Warping (DTW)
 # Preparando a Matriz por GVE
 # Criando a matriz 
@@ -487,7 +511,8 @@ plt.show()
 matriz_gve = df_notif_SE_gve.pivot(
     index='GVE', 
     columns='SEM_PRI', 
-    values='TOTAL_NOTIFIC'
+#    values='TOTAL_NOTIFIC'
+    values='TAXA_INCIDENCIA'
 ).fillna(0) # Zera as semanas sem casos
 
 matriz_gve_cluster = matriz_gve.copy()
@@ -862,7 +887,7 @@ ax.plot(K_range,Elbow, marker='o', color='darkblue', linewidth=2, markersize=8)
 
 # Formatação dos Títulos dos Eixos (Sem título do gráfico, Arial 11, Preta)
 ax.set_xlabel('Nº Clusters', fontsize=11, color='black', fontfamily='Arial', labelpad=10)
-ax.set_ylabel('WCSS', fontsize=11, color='black', fontfamily='Arial', labelpad=10)
+ax.set_ylabel('WCSS (K-Means)', fontsize=11, color='black', fontfamily='Arial', labelpad=10)
 
 # Formatação dos Ticks (Valores dos eixos) em Arial
 plt.xticks(ticks=range(1, 11), fontfamily='Arial', fontsize=10)
@@ -1144,3 +1169,85 @@ ari_score = adjusted_rand_score(labels_kmeans, labels_dtw)
 print("=== MÉTRICA DE CONCORDÂNCIA ===")
 print(f"Adjusted Rand Index (ARI) para k=4: {ari_score:.4f}")
 print("-" * 30)
+
+# %%print("Gerando visualização da Matriz Padronizada...")
+
+# 1. O scaler do tslearn costuma devolver um array 3D (ex: 28, 53, 1). 
+# O comando .squeeze() transforma de volta para 2D (28, 53) para o heatmap entender.
+matriz_2d = matriz_gve_pad.squeeze()
+
+# 2. Transformar o array numpy de volta em um DataFrame do Pandas para ter os rótulos corretos
+df_matriz_pad = pd.DataFrame(
+    matriz_2d, 
+    index=matriz_gve.index,       # Nomes/Códigos dos GVEs no Eixo Y
+    columns=matriz_gve.columns    # Semanas Epidemiológicas no Eixo X
+)
+print("Gerando Mapa de Calor com Regras da Tabela 8 do TCC...")
+
+# 1. Configurar o tamanho e cor de fundo da figura
+fig, ax = plt.subplots(figsize=(16, 10))
+ax.set_facecolor('white')
+fig.patch.set_facecolor('white')
+
+# 2. Plotar o Heatmap
+# Note que desativamos as bordas internas do seaborn para usar as regras do ax.spines
+heatmap = sns.heatmap(
+    df_matriz_pad, 
+    cmap="viridis", 
+    center=0, 
+    linewidths=0.5, # Removemos as linhas brancas entre células para não conflitar com a estética de borda
+    cbar_kws={'label': 'Z-Score (Desvios Padrão)', 'shrink': 0.8},
+    ax=ax
+)
+
+# 3. Título do Painel: ALINHADO À ESQUERDA e em MAIÚSCULO
+#titulo_painel = 'MAPA DE CALOR TEMPORAL DA INCIDÊNCIA PADRONIZADA POR GVE'
+#ax.set_title(titulo_painel.upper(), loc='left', fontsize=12, fontweight='bold', color='black', fontfamily='Arial', pad=15)
+
+# 4. Rótulos dos Eixos (Arial, Tam 11, Preto)
+ax.set_ylabel('Grupos de Vigilância Epidemiológica (GVE)', fontsize=11, color='black', fontfamily='Arial', labelpad=10)
+ax.set_xlabel('Semana Epidemiológica', fontsize=11, color='black', fontfamily='Arial', labelpad=10)
+
+# 5. Formatação dos Ticks (Arial, Tam 10)
+ax.tick_params(axis='both', which='major', labelsize=10, width=1.5, length=4, color='black')
+for label in (ax.get_xticklabels() + ax.get_yticklabels()):
+    label.set_fontname('Arial')
+
+# Ajuste da rotação dos textos dos eixos
+plt.xticks(rotation=90)
+plt.yticks(rotation=0)
+
+# 6. Regras da Tabela 8: Grades, Bordas e Eixos (1.5pt)
+ax.grid(False) # Não deve conter linhas de grade
+
+# Resetar a visibilidade de todas as bordas (o heatmap costuma apagar elas)
+for spine in ax.spines.values():
+    spine.set_visible(False)
+
+# Formatação das linhas dos eixos (Sólida, Preta, 1.5pt)
+ax.spines['top'].set_visible(False)    # Sem borda superior
+ax.spines['right'].set_visible(False)  # Sem borda direita
+
+ax.spines['bottom'].set_visible(True)       # Força a exibição da borda inferior
+ax.spines['bottom'].set_linewidth(1.5)      # Eixo principal horizontal (1.5pt)
+ax.spines['bottom'].set_color('black')
+
+ax.spines['left'].set_visible(True)         # Força a exibição da borda esquerda
+ax.spines['left'].set_linewidth(1.5)        # Eixo principal vertical (1.5pt)
+ax.spines['left'].set_color('black')
+
+# 7. Ajuste estético na Barra de Cores (Colorbar) para seguir as regras
+cbar = heatmap.collections[0].colorbar
+cbar.ax.yaxis.label.set_fontname('Arial')
+cbar.ax.yaxis.label.set_fontsize(11)
+cbar.ax.yaxis.label.set_color('black')
+cbar.ax.tick_params(labelsize=10, width=1.5, length=4, color='black')
+for label in cbar.ax.get_yticklabels():
+    label.set_fontname('Arial')
+cbar.outline.set_visible(False) # Remove o quadrado ao redor da barra de cores
+
+# Ajuste final de layout
+plt.tight_layout()
+plt.show()
+
+# %%
